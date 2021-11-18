@@ -43,7 +43,6 @@ def main(labelmap_path, model_path, tf_record_path, config_path, output_path):
 
     # update the eval config file
     eval_input_config.tf_record_input_reader.input_path[:] = [tf_record_path]
-    dataset = build_dataset(eval_input_config)
 
     # build dataset
     dataset = build_dataset(eval_input_config)
@@ -52,7 +51,7 @@ def main(labelmap_path, model_path, tf_record_path, config_path, output_path):
     images = []
     logger.info(f'Inference on {tf_record_path}')
     for idx, batch in enumerate(dataset):
-        if idx % 50:
+        if idx % 50 == 0:
             logger.info(f'Step: {idx}')
         # add new axis and feed into model 
         input_tensor = batch['image']
@@ -61,10 +60,12 @@ def main(labelmap_path, model_path, tf_record_path, config_path, output_path):
 
         detections = detect_fn(input_tensor)
         
+        #logger.info(f'Detections: {detections}')
+        
         # tensor -> numpy arr, remove one dimensions
         num_detections = int(detections.pop('num_detections'))
-        detections = {key: value[0, ...].numpy()
-                    for key, value in detections.items()}
+        detections = {key: value[0, :num_detections].numpy()
+                  for key, value in detections.items()}
         detections['num_detections'] = num_detections
 
         # detection_classes should be ints.
@@ -79,7 +80,7 @@ def main(labelmap_path, model_path, tf_record_path, config_path, output_path):
             category_index,
             use_normalized_coordinates=True,
             max_boxes_to_draw=200,
-            min_score_thresh=.30,
+            min_score_thresh=.10,
             agnostic_mode=False)
         images.append(image_np_with_detections)
     
@@ -91,12 +92,12 @@ def main(labelmap_path, model_path, tf_record_path, config_path, output_path):
     im_obj = ax.imshow(images[0])
 
     def animate(idx):
-        image = images[idx]
-        im_obj.set_data(image)
+        if idx < len(images):
+            image = images[idx]
+            im_obj.set_data(image)
         
     anim = animation.FuncAnimation(f, animate, frames=198)
     anim.save(output_path, fps=5, dpi=300)
-
 
 if __name__ == "__main__": 
     logger = get_module_logger(__name__)
